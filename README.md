@@ -1,116 +1,88 @@
-# MCP Server for MariaDB based on NodeJS
+# MCP Server for MariaDB (Writable)
 
-[![smithery badge](https://smithery.ai/badge/@oleander/mcp-server-mariadb)](https://smithery.ai/server/@oleander/mcp-server-mariadb)
-![Demo](assets/demo.gif)
+A Model Context Protocol server for MariaDB that provides not only read-only access but also optional write capabilities (`INSERT`, `UPDATE`, `DELETE`). This server enables LLMs to inspect database schemas and execute SQL queries based on the permissions you grant.
 
-A Model Context Protocol server that provides read-only access to MariaDB databases. This server enables LLMs to inspect database schemas and execute read-only queries.
+This project is a fork of the original [oleander/mcp-server-mariadb](https://github.com/oleander/mcp-server-mariadb), extended to support mutation operations and granular tool control.
 
 ## Components
 
 ### Tools
 
-- **mariadb_query**
-  - Execute read-only SQL queries against the connected database
-  - Input: `sql` (string): The SQL query to execute
-  - All queries are executed within a READ ONLY transaction
+The server provides several tools that can be individually enabled or disabled:
+
+- **mariadb_query_select**
+  - Execute read-only SQL queries against the connected database.
+  - All queries are executed within a READ ONLY transaction.
+  - Enabled by default.
+
+- **mariadb_query_insert**
+  - Execute `INSERT` queries.
+  - Disabled by default.
+
+- **mariadb_query_update**
+  - Execute `UPDATE` queries.
+  - Disabled by default.
+
+- **mariadb_query_delete**
+  - Execute `DELETE` queries.
+  - Disabled by default.
 
 ### Resources
 
 The server provides schema information for each table in the database:
 
 - **Table Schemas**
-  - JSON schema information for each table
-  - Includes column names and data types
-  - Automatically discovered from database metadata
+  - JSON schema information for each table.
+  - Includes column names and data types.
+  - Automatically discovered from database metadata.
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MARIADB_HOST` | MariaDB host address | `127.0.0.1` |
+| `MARIADB_PORT` | MariaDB port | `3306` |
+| `MARIADB_USER` | Database user | `root` |
+| `MARIADB_PASS` | Database password | `""` |
+| `MARIADB_DB` | Target database name | `""` |
+| `ENABLE_MARIADB_QUERY_SELECT` | Enable the SELECT tool | `true` |
+| `ENABLE_MARIADB_QUERY_INSERT` | Enable the INSERT tool | `false` |
+| `ENABLE_MARIADB_QUERY_UPDATE` | Enable the UPDATE tool | `false` |
+| `ENABLE_MARIADB_QUERY_DELETE` | Enable the DELETE tool | `false` |
+| `LOG_LEVEL` | Logging level (`error`, `warn`, `info`, `debug`) | `info` |
 
 ## Usage with Claude Desktop
 
-To use this server with the Claude Desktop app, add the following configuration to the "mcpServers" section of your `claude_desktop_config.json`:
+To use this server with the Claude Desktop app, add the following configuration to the `mcpServers` section of your `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
-    "mcp_server_mariadb": {
+    "mariadb-writable": {
       "command": "npx",
-      "args": ["-y", "@oleander/mcp-server-mariadb"],
+      "args": ["-y", "@jaesimio/mcp-server-mariadb-writable"],
       "env": {
         "MARIADB_HOST": "127.0.0.1",
         "MARIADB_PORT": "3306",
-        "MARIADB_USER": "root",
-        "MARIADB_PASS": "",
-        "MARIADB_DB": "db_name"
+        "MARIADB_USER": "your_user",
+        "MARIADB_PASS": "your_password",
+        "MARIADB_DB": "your_db",
+        "ENABLE_MARIADB_QUERY_INSERT": "true",
+        "ENABLE_MARIADB_QUERY_UPDATE": "true"
       }
     }
   }
 }
 ```
-
-Replace `/db_name` with your database name or leave it blank to retrieve all databases.
 
 ## Logging
 
-This server uses the `winston` logging library to provide detailed log output. The log level can be controlled using the `LOG_LEVEL` environment variable. The available log levels are:
+All log output is handled by `winston` and is explicitly redirected to **stderr**. This ensures that the primary **stdout** stream remains dedicated to the MCP JSON-RPC protocol, preventing connection issues even when debug logs are enabled.
 
-- `error`: Logs only error messages
-- `warn`: Logs warnings and error messages
-- `info`: Logs informational messages, warnings, and error messages
-- `debug`: Logs debug messages, informational messages, warnings, and error messages
-
-To set the log level, add the `LOG_LEVEL` environment variable to your configuration. For example:
-
-```json
-{
-  "mcpServers": {
-    "mcp_server_mariadb": {
-      "command": "npx",
-      "args": ["-y", "@oleander/mcp-server-mariadb"],
-      "env": {
-        "MARIADB_HOST": "127.0.0.1",
-        "MARIADB_PORT": "3306",
-        "MARIADB_USER": "root",
-        "MARIADB_PASS": "",
-        "MARIADB_DB": "db_name",
-        "LOG_LEVEL": "debug"
-      }
-    }
-  }
-}
-```
-
-## Troubleshooting
-
-### Package Installation
-
-During package installation, the package will automatically compile the TypeScript code to JavaScript. This happens through the `prepare` script which runs `npm run build`. If you encounter any compilation errors during installation, ensure you have sufficient permissions and that your environment meets the following requirements:
-
-- Node.js installed and accessible in your PATH
-- Sufficient permissions to execute npm scripts
-- Access to write to the installation directory
-
-### Connection Issues
-
-If you encounter an error "Could not connect to MCP server mcp-server-mariadb", you may need to explicitly
-set the path of all required binaries such as the configuration below:
-
-```json
-{
-  "mcpServers": {
-    "mcp_server_mariadb": {
-      "command": "/path/to/npx/binary/npx",
-      "args": ["-y", "@oleander/mcp-server-mariadb"],
-      "env": {
-        "MARIADB_HOST": "127.0.0.1",
-        "MARIADB_PORT": "3306",
-        "MARIADB_USER": "root",
-        "MARIADB_PASS": "",
-        "MARIADB_DB": "db_name",
-        "PATH": "/path/to/node/bin:/usr/bin:/bin"
-      }
-    }
-  }
-}
-```
+The log level can be set using the `LOG_LEVEL` environment variable (e.g., `debug`).
 
 ## License
 
-This MCP server is licensed under the MIT License. This means you are free to use, modify, and distribute the software, subject to the terms and conditions of the MIT License. For more details, please see the LICENSE file in the project repository.
+This project is licensed under the MIT License. See the [LICENSE.md](LICENSE.md) file for details.

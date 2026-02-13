@@ -1,9 +1,14 @@
 {
-  "name": "@oleander/mcp-server-mariadb",
-  "version": "1.0.8",
+  "name": "@jaesimio/mcp-server-mariadb-writable",
+  "version": "1.0.1",
   "description": "MCP server for interacting with MariaDB databases based on Node",
   "license": "MIT",
   "author": "Ben Borla (https://github.com/benborla)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jaesimio/mcp-server-mariadb-writable.git"
+  },
+  "homepage": "https://github.com/jaesimio/mcp-server-mariadb-writable",
   "type": "module",
   "main": "dist/index.js",
   "preferGlobal": true,
@@ -12,11 +17,10 @@
   },
   "files": [
     "dist",
-    "README.md",
-    "assets"
+    "README.md"
   ],
   "scripts": {
-    "prepare": "yarn compile && yarn build",
+    "prepare": "pnpm compile && pnpm build",
     "compile": "tsc",
     "build": "shx chmod +x dist/*.js"
   },

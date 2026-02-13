@@ -37,6 +37,12 @@ const config = {
   paths: {
     schema: "schema",
   },
+  tools: {
+    enableSelect: process.env.ENABLE_MARIADB_QUERY_SELECT !== "false",
+    enableInsert: process.env.ENABLE_MARIADB_QUERY_INSERT === "true",
+    enableUpdate: process.env.ENABLE_MARIADB_QUERY_UPDATE === "true",
+    enableDelete: process.env.ENABLE_MARIADB_QUERY_DELETE === "true",
+  },
 };
 
 const logger = winston.createLogger({
@@ -47,7 +53,11 @@ const logger = winston.createLogger({
       return `${timestamp} [${level}]: ${message}`;
     }),
   ),
-  transports: [new winston.transports.Console({ stderrLevels: ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'] })],
+  transports: [
+    new winston.transports.Stream({
+      stream: process.stderr,
+    }),
+  ],
 });
 
 const mariadbQuery = <T>(
@@ -117,7 +127,14 @@ async function executeQuery<T>(sql: string, params: any[] = []): Promise<T> {
   }
 }
 
-async function executeReadOnlyQuery<T>(sql: string): Promise<T> {
+const bigIntSerializer = (_key: string, value: any) => {
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+  return value;
+};
+
+async function executeSelectQuery<T>(sql: string): Promise<T> {
   const connection = await mariadbGetConnection(pool);
 
   try {
@@ -132,14 +149,6 @@ async function executeReadOnlyQuery<T>(sql: string): Promise<T> {
 
     // Rollback transaction (since it's read-only)
     await mariadbRollback(connection);
-
-    // Custom JSON serializer to handle BigInt
-    const bigIntSerializer = (key: string, value: any) => {
-      if (typeof value === "bigint") {
-        return value.toString();
-      }
-      return value;
-    };
 
     return <T>{
       content: [
@@ -160,6 +169,36 @@ async function executeReadOnlyQuery<T>(sql: string): Promise<T> {
     } catch (resetError) {
       logger.error("Error resetting transaction mode:", resetError);
     }
+    connection.release();
+  }
+}
+
+async function executeWriteQuery<T>(sql: string): Promise<T> {
+  const connection = await mariadbGetConnection(pool);
+
+  try {
+    // Begin transaction
+    await mariadbBeginTransaction(connection);
+
+    // Execute query
+    const results = await mariadbQuery(connection, sql);
+
+    // Commit changes
+    await connection.commit();
+
+    return <T>{
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(results, bigIntSerializer, 2),
+        },
+      ],
+      isError: false,
+    };
+  } catch (error) {
+    await mariadbRollback(connection);
+    throw error;
+  } finally {
     connection.release();
   }
 }
@@ -208,28 +247,92 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   };
 });
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [
-    {
-      name: "mariadb_query",
-      description: "Run a read-only MariaDB query",
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  const tools = [];
+
+  if (config.tools.enableSelect) {
+    tools.push({
+      name: "mariadb_query_select",
+      description: "Run a SELECT MariaDB query (read-only)",
       inputSchema: {
         type: "object",
         properties: {
           sql: { type: "string" },
         },
+        required: ["sql"],
       },
-    },
-  ],
-}));
-
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  if (request.params.name !== "mariadb_query") {
-    throw new Error(`Unknown tool: ${request.params.name}`);
+    });
   }
 
-  const sql = request.params.arguments?.sql as string;
-  return executeReadOnlyQuery(sql);
+  if (config.tools.enableInsert) {
+    tools.push({
+      name: "mariadb_query_insert",
+      description: "Run an INSERT MariaDB query",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sql: { type: "string" },
+        },
+        required: ["sql"],
+      },
+    });
+  }
+
+  if (config.tools.enableUpdate) {
+    tools.push({
+      name: "mariadb_query_update",
+      description: "Run an UPDATE MariaDB query",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sql: { type: "string" },
+        },
+        required: ["sql"],
+      },
+    });
+  }
+
+  if (config.tools.enableDelete) {
+    tools.push({
+      name: "mariadb_query_delete",
+      description: "Run a DELETE MariaDB query",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sql: { type: "string" },
+        },
+        required: ["sql"],
+      },
+    });
+  }
+
+  return { tools };
+});
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+  const sql = args?.sql as string;
+
+  if (!sql) {
+    throw new Error("Missing SQL query");
+  }
+
+  switch (name) {
+    case "mariadb_query_select":
+      if (!config.tools.enableSelect) throw new Error("Select tool is disabled");
+      return executeSelectQuery(sql);
+    case "mariadb_query_insert":
+      if (!config.tools.enableInsert) throw new Error("Insert tool is disabled");
+      return executeWriteQuery(sql);
+    case "mariadb_query_update":
+      if (!config.tools.enableUpdate) throw new Error("Update tool is disabled");
+      return executeWriteQuery(sql);
+    case "mariadb_query_delete":
+      if (!config.tools.enableDelete) throw new Error("Delete tool is disabled");
+      return executeWriteQuery(sql);
+    default:
+      throw new Error(`Unknown tool: ${name}`);
+  }
 });
 
 // Server startup and shutdown

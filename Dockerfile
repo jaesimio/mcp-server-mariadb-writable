@@ -6,21 +6,28 @@ RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
-# Copy package files and TypeScript config
-COPY package.json yarn.lock tsconfig.json ./
+# Enable corepack and prepare pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy TypeScript source files
+# Copy package files
+COPY package.json pnpm-lock.yaml tsconfig.json ./
+
+# Install ALL dependencies (including devDependencies like typescript)
+# Use --ignore-scripts to prevent 'prepare' from running prematurely
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# Copy source files
 COPY *.ts ./
 
-# Install dependencies
-RUN yarn install --frozen-lockfile
-
 # Build application
-RUN yarn compile && yarn build
+RUN pnpm run compile && pnpm run build
 
 # Production stage
 FROM node:23-alpine
 RUN apk add --no-cache curl
+
+# Enable corepack for production stage
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Add security: run as non-root user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
@@ -31,7 +38,7 @@ WORKDIR /app
 # Copy only necessary files from builder
 COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
 COPY --from=builder --chown=appuser:appgroup /app/package.json ./
-COPY --from=builder --chown=appuser:appgroup /app/yarn.lock ./
+COPY --from=builder --chown=appuser:appgroup /app/pnpm-lock.yaml ./
 
 # Set production environment
 ENV NODE_ENV=production \
@@ -43,7 +50,7 @@ ENV NODE_ENV=production \
     LOG_LEVEL=info
 
 # Install only production dependencies
-RUN yarn install --production --frozen-lockfile
+RUN pnpm install --prod --frozen-lockfile --ignore-scripts
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \

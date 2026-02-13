@@ -26,6 +26,10 @@ services:
       MARIADB_USER: test_user
       MARIADB_PASS: test_password
       MARIADB_DB: test_db
+      ENABLE_MARIADB_QUERY_SELECT: "true"
+      ENABLE_MARIADB_QUERY_INSERT: "true"
+      ENABLE_MARIADB_QUERY_UPDATE: "true"
+      ENABLE_MARIADB_QUERY_DELETE: "true"
       LOG_LEVEL: debug
     restart: always
     entrypoint: npm exec mcp-proxy
