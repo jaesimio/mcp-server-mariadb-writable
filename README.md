@@ -47,6 +47,7 @@ The server provides schema information for each table in the database:
 | `MARIADB_USER` | Database user | `root` |
 | `MARIADB_PASS` | Database password | `""` |
 | `MARIADB_DB` | Target database name | `""` |
+| `MARIADB_CONNECTION_LIMIT` | Maximum number of connections in the pool | `1` |
 | `ENABLE_MARIADB_QUERY_SELECT` | Enable the SELECT tool | `true` |
 | `ENABLE_MARIADB_QUERY_INSERT` | Enable the INSERT tool | `false` |
 | `ENABLE_MARIADB_QUERY_UPDATE` | Enable the UPDATE tool | `false` |

@@ -1,6 +1,6 @@
 {
   "name": "@jaesimio/mcp-server-mariadb-writable",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "MCP server for interacting with MariaDB databases based on Node",
   "license": "MIT",
   "author": "Ben Borla (https://github.com/benborla)",

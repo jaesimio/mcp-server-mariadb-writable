@@ -32,7 +32,7 @@ const config = {
     user: process.env.MARIADB_USER || "root",
     password: process.env.MARIADB_PASS || "",
     database: process.env.MARIADB_DB || "",
-    connectionLimit: 10,
+    connectionLimit: Number(process.env.MARIADB_CONNECTION_LIMIT || "1"),
   },
   paths: {
     schema: "schema",
